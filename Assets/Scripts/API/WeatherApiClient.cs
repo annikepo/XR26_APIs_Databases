@@ -1,79 +1,81 @@
 using UnityEngine;
 using UnityEngine.Networking;
 using System.Threading.Tasks;
-using System;
 using Newtonsoft.Json;
 using WeatherApp.Data;
 using WeatherApp.Config;
 
 namespace WeatherApp.Services
 {
-    /// <summary>
-    /// Modern API client for fetching weather data
-    /// Students will complete the implementation following async/await patterns
-    /// </summary>
     public class WeatherApiClient : MonoBehaviour
     {
         [Header("API Configuration")]
         [SerializeField] private string baseUrl = "http://api.openweathermap.org/data/2.5/weather";
-        
-        /// <summary>
-        /// Fetch weather data for a specific city using async/await pattern
-        /// TODO: Students will implement this method
-        /// </summary>
-        /// <param name="city">City name to get weather for</param>
-        /// <returns>WeatherData object or null if failed</returns>
+
         public async Task<WeatherData> GetWeatherDataAsync(string city)
         {
-            // Validate input parameters
+            // Validate input
             if (string.IsNullOrWhiteSpace(city))
             {
-                Debug.LogError("City name cannot be empty");
+                Debug.LogError("City name cannot be empty.");
                 return null;
             }
-            
-            // Check if API key is configured
+
+            // Get API key from config
+            string apiKey = ApiConfig.OpenWeatherMapApiKey;
             if (!ApiConfig.IsApiKeyConfigured())
             {
-                Debug.LogError("API key not configured. Please set up your config.json file in StreamingAssets folder.");
+                Debug.LogError("API key not configured. Please check config.json.");
                 return null;
             }
-            
-            // TODO: Build the complete URL with city and API key
-            string url = $"";
-            
-            // TODO: Create UnityWebRequest and use modern async pattern
+
+            // Build full URL
+            string url = $"{baseUrl}?q={UnityWebRequest.EscapeURL(city)}&appid={apiKey}&units=metric";
+            Debug.Log($"[DEBUG] Final URL: {url}");
+
+            // Make web request
             using (UnityWebRequest request = UnityWebRequest.Get(url))
             {
-                // TODO: Use async/await, send the request and wait for response
-                
-                // TODO: Implement proper error handling for different result types
-                // Check request.result for Success, ConnectionError, ProtocolError, DataProcessingError
-                
-                // TODO: Parse JSON response using Newtonsoft.Json
-                
-                // TODO: Return the parsed WeatherData object
-                
-                return null; // Placeholder - students will replace this
+                var operation = request.SendWebRequest();
+
+                while (!operation.isDone)
+                    await Task.Yield();
+
+                // ✅ Handle ALL request failures
+                if (request.result != UnityWebRequest.Result.Success)
+                {
+                    Debug.LogError($"❌ Request failed: {request.result} - {request.error}\n{request.downloadHandler.text}");
+                    return null;
+                }
+
+                // ✅ Parse JSON response
+                try
+                {
+                    string json = request.downloadHandler.text;
+                    WeatherData weather = JsonConvert.DeserializeObject<WeatherData>(json);
+                    return weather;
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"❌ Error parsing weather data: {e.Message}");
+                    return null;
+                }
             }
         }
-        
-        /// <summary>
-        /// Example usage method - students can use this as reference
-        /// </summary>
+
+        // Example usage on start
         private async void Start()
         {
-            // Example: Get weather for London
             var weatherData = await GetWeatherDataAsync("London");
-            
+
             if (weatherData != null && weatherData.IsValid)
             {
-                Debug.Log($"Weather in {weatherData.CityName}: {weatherData.TemperatureInCelsius:F1}°C");
-                Debug.Log($"Description: {weatherData.PrimaryDescription}");
+                Debug.Log($"✅ Weather in {weatherData.CityName}: {weatherData.TemperatureInCelsius:F1}°C");
+                Debug.Log($"🌤️ Description: {weatherData.PrimaryDescription}");
             }
             else
             {
-                Debug.LogError("Failed to get weather data");
+                Debug.LogError("❌ Failed to get weather data");
             }
         }
     }
